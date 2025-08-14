@@ -1,4 +1,4 @@
-"use client"
+"use clientg"
 
 import React, { useState } from 'react';
 import { Calendar, Home, Users, CreditCard, Bell, Search, Plus, Edit, Trash2, CheckCircle, Clock, Download, Menu, X, LucideProps, LogIn, LogOut, BedDouble, Building, UserCheck, Filter, Wrench } from 'lucide-react';
@@ -76,7 +76,7 @@ interface FilterPillProps {
     label: string;
     value: string;
     activeValue: string;
-    onClick: (value: any) => void;
+    onClick: (value: string) => void;
 }
 
 
