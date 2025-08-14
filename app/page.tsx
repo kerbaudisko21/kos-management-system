@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState } from 'react';
-import { Calendar, Home, Users, CreditCard, Bell, Search, Plus, Edit, Trash2, CheckCircle, Clock, Download, Menu, X, LucideProps, LogIn, LogOut, BedDouble, Building, UserCheck, Filter, Wrench } from 'lucide-react';
+import { Calendar, Home, Users, CreditCard, Bell, Search, Plus, Edit, Trash2, CheckCircle, Clock, Download, Menu, X, LucideProps, LogIn, LogOut, BedDouble, Building, UserCheck, Filter } from 'lucide-react';
 
 // --- TYPE DEFINITIONS ---
 
@@ -10,7 +10,7 @@ interface Room {
     number: string;
     type: 'Kos' | 'Homestay';
     price: number;
-    status: 'available' | 'occupied' | 'maintenance';
+    status: 'available' | 'occupied';
     floor: number;
     facilities: string[];
     tenant: string | null;
@@ -43,7 +43,7 @@ interface StatCardProps {
     title: string;
     value: string | number;
     icon: React.ReactElement<LucideProps>;
-    color: 'blue' | 'green' | 'red' | 'indigo' | 'orange';
+    color: 'blue' | 'green' | 'red' | 'indigo';
     onButtonClick?: () => void;
 }
 
@@ -89,7 +89,7 @@ const KosManagementSystem: React.FC = () => {
     const [showEditTenantModal, setShowEditTenantModal] = useState(false);
     const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Default to closed on mobile
-    const [roomStatusFilter, setRoomStatusFilter] = useState<'all' | 'available' | 'occupied' | 'maintenance'>('all');
+    const [roomStatusFilter, setRoomStatusFilter] = useState<'all' | 'available' | 'occupied'>('all');
     const [roomTypeFilter, setRoomTypeFilter] = useState<'all' | 'Kos' | 'Homestay'>('all');
     const [initialBookingRoomId, setInitialBookingRoomId] = useState<number | null>(null);
 
@@ -99,7 +99,7 @@ const KosManagementSystem: React.FC = () => {
         { id: 1, number: 'A01', type: 'Kos', price: 800000, status: 'available', floor: 1, facilities: ['AC', 'WiFi', 'Lemari'], tenant: null },
         { id: 2, number: 'A02', type: 'Kos', price: 800000, status: 'occupied', floor: 1, facilities: ['AC', 'WiFi', 'Lemari'], tenant: 'Ahmad Rizki' },
         { id: 3, number: 'A03', type: 'Kos', price: 1200000, status: 'available', floor: 1, facilities: ['AC', 'WiFi', 'Lemari', 'TV', 'Kulkas'], tenant: null },
-        { id: 4, number: 'H01', type: 'Homestay', price: 250000, status: 'maintenance', floor: 2, facilities: ['AC', 'WiFi', 'Lemari'], tenant: null },
+        { id: 4, number: 'H01', type: 'Homestay', price: 250000, status: 'available', floor: 2, facilities: ['AC', 'WiFi', 'Lemari'], tenant: null },
         { id: 5, number: 'H02', type: 'Homestay', price: 450000, status: 'occupied', floor: 2, facilities: ['AC', 'WiFi', 'Lemari', 'TV', 'Kulkas', 'Balkon'], tenant: 'Sari Dewi' },
         { id: 6, number: 'B01', type: 'Kos', price: 800000, status: 'available', floor: 2, facilities: ['AC', 'WiFi', 'Lemari'], tenant: null },
     ]);
@@ -120,7 +120,6 @@ const KosManagementSystem: React.FC = () => {
     // Derived state for dashboard stats
     const occupiedRooms = rooms.filter(room => room.status === 'occupied').length;
     const availableRooms = rooms.filter(room => room.status === 'available').length;
-    const maintenanceRooms = rooms.filter(room => room.status === 'maintenance').length;
     const pendingPayments = tenants.filter(tenant => tenant.paymentStatus === 'pending').length;
     const monthlyRevenue = payments
         .filter(payment => payment.date.startsWith('2024-08') && payment.status === 'confirmed')
@@ -182,12 +181,6 @@ const KosManagementSystem: React.FC = () => {
 
         // Remove tenant from list or mark as inactive
         setTenants(prevTenants => prevTenants.filter(t => t.name !== roomToCheckOut.tenant));
-    };
-
-    const handleFinishMaintenance = (roomId: number) => {
-        setRooms(prevRooms => prevRooms.map(room =>
-            room.id === roomId ? { ...room, status: 'available' } : room
-        ));
     };
 
     const handleEditTenant = (tenant: Tenant) => {
@@ -287,17 +280,16 @@ const KosManagementSystem: React.FC = () => {
     // --- SUB-COMPONENTS FOR EACH TAB ---
 
     const Dashboard: React.FC = () => {
-        const handleViewDetails = (status: 'available' | 'occupied' | 'maintenance') => {
+        const handleViewDetails = (status: 'available' | 'occupied') => {
             setActiveTab('rooms');
             setRoomStatusFilter(status);
         };
 
         return (
             <div className="space-y-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                     <StatCard title="Kamar Terisi" value={occupiedRooms} icon={<Users className="h-6 w-6 text-green-600" />} color="green" onButtonClick={() => handleViewDetails('occupied')} />
                     <StatCard title="Kamar Tersedia" value={availableRooms} icon={<CheckCircle className="h-6 w-6 text-indigo-600" />} color="indigo" onButtonClick={() => handleViewDetails('available')} />
-                    <StatCard title="Kamar Rusak" value={maintenanceRooms} icon={<Wrench className="h-6 w-6 text-orange-600" />} color="orange" onButtonClick={() => handleViewDetails('maintenance')} />
                     <StatCard title="Pembayaran Pending" value={pendingPayments} icon={<Bell className="h-6 w-6 text-red-600" />} color="red" />
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -341,16 +333,14 @@ const KosManagementSystem: React.FC = () => {
             return statusMatch && typeMatch && searchMatch;
         });
 
-        const getStatusPill = (status: 'available' | 'occupied' | 'maintenance') => {
+        const getStatusPill = (status: 'available' | 'occupied') => {
             const styles = {
                 available: 'bg-green-100 text-green-800',
                 occupied: 'bg-red-100 text-red-800',
-                maintenance: 'bg-orange-100 text-orange-800',
             };
             const text = {
                 available: 'Tersedia',
                 occupied: 'Terisi',
-                maintenance: 'Rusak',
             };
             return (
                 <span className={`px-2.5 py-1 text-xs font-semibold leading-5 rounded-full ${styles[status]}`}>
@@ -365,7 +355,7 @@ const KosManagementSystem: React.FC = () => {
         };
 
         const handleStatusFilterClick = (value: string) => {
-            setRoomStatusFilter(value as 'all' | 'available' | 'occupied' | 'maintenance');
+            setRoomStatusFilter(value as 'all' | 'available' | 'occupied');
         };
 
         const handleTypeFilterClick = (value: string) => {
@@ -397,7 +387,6 @@ const KosManagementSystem: React.FC = () => {
                                 <FilterPill label="Semua" value="all" activeValue={roomStatusFilter} onClick={handleStatusFilterClick} />
                                 <FilterPill label="Tersedia" value="available" activeValue={roomStatusFilter} onClick={handleStatusFilterClick} />
                                 <FilterPill label="Terisi" value="occupied" activeValue={roomStatusFilter} onClick={handleStatusFilterClick} />
-                                <FilterPill label="Rusak" value="maintenance" activeValue={roomStatusFilter} onClick={handleStatusFilterClick} />
                             </div>
                         </div>
                         <div className="flex-1">
@@ -445,7 +434,7 @@ const KosManagementSystem: React.FC = () => {
                             {room.type}
                         </span>
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">{getStatusPill(room.status as 'available' | 'occupied' | 'maintenance')}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap">{getStatusPill(room.status as 'available' | 'occupied')}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 font-medium">Rp {room.price.toLocaleString('id-ID')}<span className="text-gray-500 text-xs">{room.type === 'Kos' ? '/bulan' : '/hari'}</span></td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{room.tenant || '-'}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -466,8 +455,6 @@ const KosManagementSystem: React.FC = () => {
                                                     } else {
                                                         return <button onClick={() => handleCheckout(room.id)} className="text-red-600 hover:text-red-900 font-semibold transition-colors flex items-center gap-1"><LogOut className="h-4 w-4"/>Check-out</button>;
                                                     }
-                                                } else if (room.status === 'maintenance') {
-                                                    return <button onClick={() => handleFinishMaintenance(room.id)} className="text-teal-600 hover:text-teal-900 font-semibold transition-colors flex items-center gap-1"><CheckCircle className="h-4 w-4"/>Selesai</button>
                                                 }
                                                 return <span className="text-gray-400">-</span>;
                                             })()}
