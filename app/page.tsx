@@ -76,7 +76,7 @@ interface FilterPillProps {
     label: string;
     value: string;
     activeValue: string;
-    onClick: (value: string) => void;
+    onClick: (value: any) => void;
 }
 
 
