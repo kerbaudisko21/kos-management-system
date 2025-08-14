@@ -3,6 +3,8 @@
 import React, { useState } from 'react';
 import { Calendar, Home, Users, CreditCard, Bell, Search, Plus, Edit, Trash2, CheckCircle, Clock, Download, Menu, X, LucideProps } from 'lucide-react';
 
+// --- TYPE DEFINITIONS for Props ---
+
 interface StatCardProps {
     title: string;
     value: string | number;
@@ -33,7 +35,7 @@ const KosManagementSystem: React.FC = () => {
     const [showBookingModal, setShowBookingModal] = useState(false);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [bookingType, setBookingType] = useState('monthly');
-    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Default to closed on mobile
 
     // --- MOCK DATA (replace with API calls in a real application) ---
     const [rooms] = useState([
@@ -115,7 +117,7 @@ const KosManagementSystem: React.FC = () => {
 
     const Dashboard: React.FC = () => (
         <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatCard title="Total Kamar" value={totalRooms} icon={<Home className="h-6 w-6 text-blue-600" />} color="blue" />
                 <StatCard title="Kamar Terisi" value={occupiedRooms} icon={<Users className="h-6 w-6 text-green-600" />} color="green" />
                 <StatCard title="Kamar Tersedia" value={availableRooms} icon={<CheckCircle className="h-6 w-6 text-indigo-600" />} color="indigo" />
@@ -191,7 +193,7 @@ const KosManagementSystem: React.FC = () => {
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
                     <input
                         type="text"
-                        placeholder="Cari kamar (nomor, tipe, atau nama penghuni)..."
+                        placeholder="Cari kamar, tipe, atau penghuni..."
                         className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
@@ -199,7 +201,7 @@ const KosManagementSystem: React.FC = () => {
                 </div>
                 <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
                     <div className="overflow-x-auto">
-                        <table className="w-full">
+                        <table className="min-w-full w-full">
                             <thead className="bg-gray-50">
                             <tr>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nomor</th>
@@ -244,7 +246,7 @@ const KosManagementSystem: React.FC = () => {
             <h2 className="text-2xl font-bold text-gray-900">Manajemen Penghuni</h2>
             <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="w-full">
+                    <table className="min-w-full w-full">
                         <thead className="bg-gray-50">
                         <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama</th>
@@ -305,7 +307,7 @@ const KosManagementSystem: React.FC = () => {
             </div>
             <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="w-full">
+                    <table className="min-w-full w-full">
                         <thead className="bg-gray-50">
                         <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Penghuni</th>
@@ -463,13 +465,19 @@ const KosManagementSystem: React.FC = () => {
 
     // Main component render
     return (
-        <div className="bg-gray-50 min-h-screen flex">
+        <div className="bg-gray-50 min-h-screen lg:flex">
+            {/* Overlay for mobile */}
+            <div
+                className={`fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden transition-opacity ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                onClick={() => setIsSidebarOpen(false)}
+            ></div>
+
             {/* Sidebar */}
-            <aside className={`bg-white border-r border-gray-200 transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-20'} lg:w-64`}>
+            <aside className={`fixed top-0 left-0 h-full bg-white border-r border-gray-200 z-30 transform transition-transform lg:relative lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} w-64`}>
                 <div className="flex items-center justify-between h-16 px-6 border-b">
-                    <h1 className={`text-xl font-bold text-blue-600 transition-opacity ${!isSidebarOpen && 'lg:opacity-100 opacity-0'}`}>KosKu</h1>
-                    <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="lg:hidden p-2 rounded-md hover:bg-gray-100">
-                        {isSidebarOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+                    <h1 className="text-xl font-bold text-blue-600">KosKu</h1>
+                    <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-2 rounded-md hover:bg-gray-100">
+                        <X className="h-6 w-6" />
                     </button>
                 </div>
                 <nav className="py-6 px-4">
@@ -481,14 +489,14 @@ const KosManagementSystem: React.FC = () => {
                                     onClick={(e) => {
                                         e.preventDefault();
                                         setActiveTab(item.id);
+                                        setIsSidebarOpen(false); // Close sidebar on mobile after navigation
                                     }}
                                     className={`flex items-center py-3 px-4 rounded-lg transition-colors text-gray-700 hover:bg-blue-50 hover:text-blue-600
                     ${activeTab === item.id ? 'bg-blue-100 text-blue-600 font-semibold' : ''}
-                    ${!isSidebarOpen && 'lg:justify-start justify-center'}
                   `}
                                 >
                                     <item.icon className="h-5 w-5" />
-                                    <span className={`ml-4 transition-opacity ${!isSidebarOpen && 'lg:inline-block hidden'}`}>{item.label}</span>
+                                    <span className="ml-4">{item.label}</span>
                                 </a>
                             </li>
                         ))}
@@ -497,16 +505,16 @@ const KosManagementSystem: React.FC = () => {
             </aside>
 
             {/* Main Content */}
-            <div className="flex-1 flex flex-col">
+            <div className="flex-1 flex flex-col w-full">
                 {/* Header */}
-                <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6">
-                    <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 rounded-md hover:bg-gray-100 lg:hidden">
+                <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-4 sm:px-6 sticky top-0 z-10">
+                    <button onClick={() => setIsSidebarOpen(true)} className="p-2 rounded-md hover:bg-gray-100 lg:hidden">
                         <Menu className="h-6 w-6 text-gray-600" />
                     </button>
                     <div className="flex-1">
-                        <h2 className="text-xl font-semibold text-gray-800 capitalize">{activeTab.replace('-', ' ')}</h2>
+                        <h2 className="text-lg sm:text-xl font-semibold text-gray-800 capitalize ml-2 lg:ml-0">{activeTab.replace('-', ' ')}</h2>
                     </div>
-                    <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-2 sm:space-x-4">
                         <button className="p-2 rounded-full hover:bg-gray-100">
                             <Bell className="h-5 w-5 text-gray-600" />
                         </button>
@@ -517,7 +525,7 @@ const KosManagementSystem: React.FC = () => {
                 </header>
 
                 {/* Page Content */}
-                <main className="flex-1 p-6 overflow-y-auto">
+                <main className="flex-1 p-4 sm:p-6 overflow-y-auto">
                     {renderContent()}
                 </main>
             </div>
