@@ -1,4 +1,4 @@
-"use clientg"
+"use client"
 
 import React, { useState } from 'react';
 import { Calendar, Home, Users, CreditCard, Bell, Search, Plus, Edit, Trash2, CheckCircle, Clock, Download, Menu, X, LucideProps, LogIn, LogOut, BedDouble, Building, UserCheck, Filter, Wrench } from 'lucide-react';
