@@ -55,6 +55,7 @@ interface InputFieldProps {
     value: string;
     onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
     name: string;
+    disabled?: boolean;
 }
 
 interface BookingModalProps {
@@ -70,6 +71,14 @@ interface EditTenantModalProps {
     onClose: () => void;
     tenant: Tenant | null;
     onSubmit: (updatedTenant: Tenant) => void;
+}
+
+interface PaymentModalProps {
+    show: boolean;
+    onClose: () => void;
+    tenant: Tenant | null;
+    roomPrice: number;
+    onSubmit: (paymentData: { tenant: Tenant, method: string, date: string, amount: number }) => void;
 }
 
 interface FilterPillProps {
@@ -88,6 +97,7 @@ const KosManagementSystem: React.FC = () => {
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [showEditTenantModal, setShowEditTenantModal] = useState(false);
     const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
+    const [tenantForPayment, setTenantForPayment] = useState<Tenant | null>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Default to closed on mobile
     const [roomStatusFilter, setRoomStatusFilter] = useState<'all' | 'available' | 'occupied'>('all');
     const [roomTypeFilter, setRoomTypeFilter] = useState<'all' | 'Kos' | 'Homestay'>('all');
@@ -216,6 +226,33 @@ const KosManagementSystem: React.FC = () => {
         setPayments(payments.filter(p => p.tenant !== tenantToDelete.name));
     };
 
+    const handleOpenPaymentModal = (tenant: Tenant) => {
+        setTenantForPayment(tenant);
+        setShowPaymentModal(true);
+    };
+
+    const handlePaymentSubmit = (paymentData: { tenant: Tenant, method: string, date: string, amount: number }) => {
+        // 1. Update tenant's payment status
+        setTenants(prev => prev.map(t => t.id === paymentData.tenant.id ? {...t, paymentStatus: 'paid', lastPayment: paymentData.date} : t));
+
+        // 2. Add new payment record
+        const newPayment: Payment = {
+            id: payments.length + 1,
+            tenant: paymentData.tenant.name,
+            room: paymentData.tenant.room,
+            amount: paymentData.amount,
+            date: paymentData.date,
+            type: paymentData.tenant.type,
+            status: 'confirmed',
+            method: paymentData.method
+        };
+        setPayments(prev => [...prev, newPayment]);
+
+        // 3. Close modal and reset state
+        setShowPaymentModal(false);
+        setTenantForPayment(null);
+    };
+
 
     // --- HELPER & LAYOUT COMPONENTS ---
 
@@ -263,7 +300,7 @@ const KosManagementSystem: React.FC = () => {
         );
     };
 
-    const InputField: React.FC<InputFieldProps> = ({ label, type, placeholder, focusColor = 'blue', value, onChange, name }) => (
+    const InputField: React.FC<InputFieldProps> = ({ label, type, placeholder, focusColor = 'blue', value, onChange, name, disabled = false }) => (
         <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
             <input
@@ -272,7 +309,8 @@ const KosManagementSystem: React.FC = () => {
                 placeholder={placeholder}
                 value={value}
                 onChange={onChange}
-                className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent focus:ring-${focusColor}-500`}
+                disabled={disabled}
+                className={`w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder:text-gray-500 focus:ring-2 focus:border-transparent focus:ring-${focusColor}-500 disabled:bg-gray-100 disabled:cursor-not-allowed`}
             />
         </div>
     );
@@ -403,7 +441,7 @@ const KosManagementSystem: React.FC = () => {
                         <input
                             type="text"
                             placeholder="Cari kamar, tipe, atau penghuni..."
-                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder:text-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
@@ -442,18 +480,18 @@ const KosManagementSystem: React.FC = () => {
                                             {(() => {
                                                 if (room.status === 'available') {
                                                     return room.type === 'Kos'
-                                                        ? <button onClick={() => handleOpenBookingModal(room.id)} className="text-blue-600 hover:text-blue-900 font-semibold transition-colors">Booking</button>
-                                                        : <button onClick={() => handleOpenBookingModal(room.id)} className="text-green-600 hover:text-green-900 font-semibold transition-colors flex items-center gap-1"><LogIn className="h-4 w-4"/>Check-in</button>;
+                                                        ? <button onClick={() => handleOpenBookingModal(room.id)} className="text-blue-600 hover:text-blue-900 transition-colors" title="Booking"><Plus className="h-5 w-5"/></button>
+                                                        : <button onClick={() => handleOpenBookingModal(room.id)} className="text-green-600 hover:text-green-900 transition-colors" title="Check-in"><LogIn className="h-5 w-5"/></button>;
                                                 } else if (room.status === 'occupied') {
                                                     if (room.type === 'Kos') {
                                                         return (
                                                             <>
-                                                                <button onClick={() => { setActiveTab('tenants'); setSearchTerm(room.tenant || ''); }} className="text-purple-600 hover:text-purple-900 font-semibold transition-colors flex items-center gap-1"><UserCheck className="h-4 w-4"/>Detail</button>
-                                                                <button onClick={() => handleCheckout(room.id)} className="text-red-600 hover:text-red-900 font-semibold transition-colors flex items-center gap-1"><LogOut className="h-4 w-4"/>Check-out</button>
+                                                                <button onClick={() => { setActiveTab('tenants'); setSearchTerm(room.tenant || ''); }} className="text-purple-600 hover:text-purple-900 transition-colors" title="Detail Penghuni"><UserCheck className="h-5 w-5"/></button>
+                                                                <button onClick={() => handleCheckout(room.id)} className="text-red-600 hover:text-red-900 transition-colors" title="Check-out"><LogOut className="h-5 w-5"/></button>
                                                             </>
                                                         );
                                                     } else {
-                                                        return <button onClick={() => handleCheckout(room.id)} className="text-red-600 hover:text-red-900 font-semibold transition-colors flex items-center gap-1"><LogOut className="h-4 w-4"/>Check-out</button>;
+                                                        return <button onClick={() => handleCheckout(room.id)} className="text-red-600 hover:text-red-900 transition-colors" title="Check-out"><LogOut className="h-5 w-5"/></button>;
                                                     }
                                                 }
                                                 return <span className="text-gray-400">-</span>;
@@ -478,7 +516,7 @@ const KosManagementSystem: React.FC = () => {
                 <input
                     type="text"
                     placeholder="Cari nama penghuni..."
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder:text-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -519,6 +557,15 @@ const KosManagementSystem: React.FC = () => {
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                     <div className="flex space-x-3">
+                                        {tenant.paymentStatus === 'pending' && (
+                                            <button
+                                                onClick={() => handleOpenPaymentModal(tenant)}
+                                                className="text-green-600 hover:text-green-900 transition-colors"
+                                                title="Atur Pembayaran"
+                                            >
+                                                <CreditCard className="h-5 w-5" />
+                                            </button>
+                                        )}
                                         <button onClick={() => handleEditTenant(tenant)} className="text-blue-600 hover:text-blue-900 transition-colors"><Edit className="h-5 w-5" /></button>
                                         <button onClick={() => handleDeleteTenant(tenant.id)} className="text-red-600 hover:text-red-900 transition-colors"><Trash2 className="h-5 w-5" /></button>
                                     </div>
@@ -534,16 +581,7 @@ const KosManagementSystem: React.FC = () => {
 
     const PaymentManagement: React.FC = () => (
         <div className="space-y-6">
-            <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
-                <h2 className="text-2xl font-bold text-gray-900">Manajemen Pembayaran</h2>
-                <button
-                    onClick={() => setShowPaymentModal(true)}
-                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center justify-center space-x-2 transition-colors shadow-sm hover:shadow-md"
-                >
-                    <Plus className="h-4 w-4" />
-                    <span>Catat Pembayaran</span>
-                </button>
-            </div>
+            <h2 className="text-2xl font-bold text-gray-900">Riwayat Pembayaran</h2>
             <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="min-w-full w-full">
@@ -643,7 +681,7 @@ const KosManagementSystem: React.FC = () => {
                             <select
                                 onChange={handleRoomSelect}
                                 value={selectedRoomId || ''}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900"
                             >
                                 <option value="">Pilih kamar yang tersedia...</option>
                                 {availableRoomsForDropdown.map(room => (
@@ -735,56 +773,55 @@ const KosManagementSystem: React.FC = () => {
         );
     };
 
-    const PaymentModal: React.FC = () => (
-        showPaymentModal && (
+    const PaymentModal: React.FC<PaymentModalProps> = ({ show, onClose, tenant, roomPrice, onSubmit }) => {
+        const [method, setMethod] = useState('');
+        const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+
+        const handleFormSubmit = () => {
+            if (!tenant || !method || !date) return;
+            onSubmit({
+                tenant,
+                method,
+                date,
+                amount: roomPrice
+            });
+        };
+
+        if (!show) return null;
+
+        return (
             <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 transition-opacity">
                 <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4 transform transition-all">
                     <h3 className="text-xl font-semibold text-gray-900 mb-6">Catat Pembayaran</h3>
                     <div className="space-y-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Pilih Penghuni</label>
-                            <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white">
-                                <option value="">Pilih penghuni...</option>
-                                {tenants.map(tenant => (
-                                    <option key={tenant.id} value={tenant.id}>{tenant.name} - Kamar {tenant.room}</option>
-                                ))}
-                            </select>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Penghuni</label>
+                            <p className="text-gray-800 bg-gray-100 px-3 py-2 rounded-lg">{tenant?.name} - Kamar {tenant?.room}</p>
                         </div>
-                        <InputField label="Jumlah Pembayaran" type="number" name="amount" placeholder="Contoh: 800000" focusColor="green" value="" onChange={() => {}} />
+                        <InputField label="Jumlah Pembayaran" type="number" name="amount" value={String(roomPrice)} onChange={() => {}} disabled />
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">Metode Pembayaran</label>
-                            <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white">
+                            <select value={method} onChange={(e) => setMethod(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white text-gray-900">
                                 <option value="">Pilih metode...</option>
-                                <option value="cash">Tunai</option>
-                                <option value="transfer">Transfer Bank</option>
-                                <option value="ewallet">E-Wallet</option>
+                                <option value="Tunai">Tunai</option>
+                                <option value="Transfer Bank">Transfer Bank</option>
+                                <option value="E-Wallet">E-Wallet</option>
                             </select>
                         </div>
-                        <InputField label="Tanggal Pembayaran" type="date" name="paymentDate" focusColor="green" value="" onChange={() => {}} />
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Catatan (Opsional)</label>
-                            <textarea
-                                rows={3}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                                placeholder="Contoh: Pembayaran untuk bulan Agustus"
-                            ></textarea>
-                        </div>
+                        <InputField label="Tanggal Pembayaran" type="date" name="paymentDate" focusColor="green" value={date} onChange={(e) => setDate(e.target.value)} />
                     </div>
                     <div className="flex space-x-3 mt-8">
-                        <button
-                            onClick={() => setShowPaymentModal(false)}
-                            className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors font-semibold"
-                        >
+                        <button onClick={onClose} className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors font-semibold">
                             Batal
                         </button>
-                        <button className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold shadow-sm hover:shadow-md">
+                        <button onClick={handleFormSubmit} disabled={!method} className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold shadow-sm hover:shadow-md disabled:bg-gray-400">
                             Simpan Pembayaran
                         </button>
                     </div>
                 </div>
             </div>
-        )
-    );
+        );
+    };
 
     const navItems = [
         { id: 'dashboard', label: 'Dashboard', icon: Home },
@@ -884,7 +921,13 @@ const KosManagementSystem: React.FC = () => {
                 tenant={editingTenant}
                 onSubmit={handleUpdateTenant}
             />
-            <PaymentModal />
+            <PaymentModal
+                show={showPaymentModal}
+                onClose={() => setTenantForPayment(null)}
+                tenant={tenantForPayment}
+                roomPrice={rooms.find(r => r.number === tenantForPayment?.room)?.price || 0}
+                onSubmit={handlePaymentSubmit}
+            />
         </div>
     );
 };
