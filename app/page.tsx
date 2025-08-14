@@ -3,7 +3,41 @@
 import React, { useState } from 'react';
 import { Calendar, Home, Users, CreditCard, Bell, Search, Plus, Edit, Trash2, CheckCircle, Clock, Download, Menu, X, LucideProps, LogIn, LogOut, BedDouble, Building, UserCheck, Filter, Wrench } from 'lucide-react';
 
-// --- TYPE DEFINITIONS for Props ---
+// --- TYPE DEFINITIONS ---
+
+interface Room {
+    id: number;
+    number: string;
+    type: 'Kos' | 'Homestay';
+    price: number;
+    status: 'available' | 'occupied' | 'maintenance';
+    floor: number;
+    facilities: string[];
+    tenant: string | null;
+}
+
+interface Tenant {
+    id: number;
+    name: string;
+    room: string;
+    phone: string;
+    checkIn: string;
+    type: 'monthly' | 'daily';
+    paymentStatus: 'paid' | 'pending';
+    lastPayment: string;
+    checkOut?: string;
+}
+
+interface Payment {
+    id: number;
+    tenant: string;
+    room: string;
+    amount: number;
+    date: string;
+    type: 'monthly' | 'daily';
+    status: 'confirmed';
+    method: string;
+}
 
 interface StatCardProps {
     title: string;
@@ -26,16 +60,16 @@ interface InputFieldProps {
 interface BookingModalProps {
     show: boolean;
     onClose: () => void;
-    rooms: any[];
+    rooms: Room[];
     initialRoomId: number | null;
-    onSubmit: (bookingData: any) => void;
+    onSubmit: (bookingData: {roomId: number, name: string, phone: string, checkIn: string, checkOut?: string}) => void;
 }
 
 interface EditTenantModalProps {
     show: boolean;
     onClose: () => void;
-    tenant: any;
-    onSubmit: (updatedTenant: any) => void;
+    tenant: Tenant | null;
+    onSubmit: (updatedTenant: Tenant) => void;
 }
 
 interface FilterPillProps {
@@ -53,7 +87,7 @@ const KosManagementSystem: React.FC = () => {
     const [showBookingModal, setShowBookingModal] = useState(false);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [showEditTenantModal, setShowEditTenantModal] = useState(false);
-    const [editingTenant, setEditingTenant] = useState<any>(null);
+    const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Default to closed on mobile
     const [roomStatusFilter, setRoomStatusFilter] = useState<'all' | 'available' | 'occupied' | 'maintenance'>('all');
     const [roomTypeFilter, setRoomTypeFilter] = useState<'all' | 'Kos' | 'Homestay'>('all');
@@ -61,7 +95,7 @@ const KosManagementSystem: React.FC = () => {
 
 
     // --- MOCK DATA (replace with API calls in a real application) ---
-    const [rooms, setRooms] = useState([
+    const [rooms, setRooms] = useState<Room[]>([
         { id: 1, number: 'A01', type: 'Kos', price: 800000, status: 'available', floor: 1, facilities: ['AC', 'WiFi', 'Lemari'], tenant: null },
         { id: 2, number: 'A02', type: 'Kos', price: 800000, status: 'occupied', floor: 1, facilities: ['AC', 'WiFi', 'Lemari'], tenant: 'Ahmad Rizki' },
         { id: 3, number: 'A03', type: 'Kos', price: 1200000, status: 'available', floor: 1, facilities: ['AC', 'WiFi', 'Lemari', 'TV', 'Kulkas'], tenant: null },
@@ -70,13 +104,13 @@ const KosManagementSystem: React.FC = () => {
         { id: 6, number: 'B01', type: 'Kos', price: 800000, status: 'available', floor: 2, facilities: ['AC', 'WiFi', 'Lemari'], tenant: null },
     ]);
 
-    const [tenants, setTenants] = useState([
+    const [tenants, setTenants] = useState<Tenant[]>([
         { id: 1, name: 'Ahmad Rizki', room: 'A02', phone: '0812-3456-7890', checkIn: '2024-01-15', type: 'monthly', paymentStatus: 'paid', lastPayment: '2024-08-01' },
         { id: 2, name: 'Sari Dewi', room: 'H02', phone: '0813-9876-5432', checkIn: '2024-08-12', type: 'daily', paymentStatus: 'paid', lastPayment: '2024-08-12' },
         { id: 3, name: 'Budi Santoso', room: 'C01', phone: '0814-1111-2222', checkIn: '2024-08-10', type: 'daily', checkOut: '2024-08-15', paymentStatus: 'paid', lastPayment: '2024-08-10' },
     ]);
 
-    const [payments, setPayments] = useState([
+    const [payments, setPayments] = useState<Payment[]>([
         { id: 1, tenant: 'Ahmad Rizki', room: 'A02', amount: 800000, date: '2024-08-01', type: 'monthly', status: 'confirmed', method: 'Transfer Bank' },
         { id: 2, tenant: 'Budi Santoso', room: 'C01', amount: 150000, date: '2024-08-10', type: 'daily', status: 'confirmed', method: 'Cash' },
         { id: 3, tenant: 'Sari Dewi', room: 'H02', amount: 450000, date: '2024-08-12', type: 'daily', status: 'confirmed', method: 'E-Wallet' },
@@ -84,7 +118,6 @@ const KosManagementSystem: React.FC = () => {
     // --- END OF MOCK DATA ---
 
     // Derived state for dashboard stats
-    const totalRooms = rooms.length;
     const occupiedRooms = rooms.filter(room => room.status === 'occupied').length;
     const availableRooms = rooms.filter(room => room.status === 'available').length;
     const maintenanceRooms = rooms.filter(room => room.status === 'maintenance').length;
@@ -108,7 +141,7 @@ const KosManagementSystem: React.FC = () => {
         const paymentStatus = isHomestay ? 'paid' : 'pending';
 
         // Add new tenant
-        const newTenant = {
+        const newTenant: Tenant = {
             id: tenants.length + 1,
             name,
             room: roomBooked.number,
@@ -122,7 +155,7 @@ const KosManagementSystem: React.FC = () => {
 
         // If it's a homestay, also add a payment record for upfront payment
         if (isHomestay) {
-            const newPayment = {
+            const newPayment: Payment = {
                 id: payments.length + 1,
                 tenant: name,
                 room: roomBooked.number,
@@ -157,12 +190,12 @@ const KosManagementSystem: React.FC = () => {
         ));
     };
 
-    const handleEditTenant = (tenant: any) => {
+    const handleEditTenant = (tenant: Tenant) => {
         setEditingTenant(tenant);
         setShowEditTenantModal(true);
     };
 
-    const handleUpdateTenant = (updatedTenant: any) => {
+    const handleUpdateTenant = (updatedTenant: Tenant) => {
         const oldTenant = tenants.find(t => t.id === updatedTenant.id);
 
         setTenants(tenants.map(t => t.id === updatedTenant.id ? updatedTenant : t));
@@ -676,6 +709,7 @@ const KosManagementSystem: React.FC = () => {
         };
 
         const handleFormSubmit = () => {
+            if (!tenant) return;
             onSubmit({ ...tenant, ...formData });
         };
 
