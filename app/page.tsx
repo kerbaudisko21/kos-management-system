@@ -364,12 +364,12 @@ const KosManagementSystem: React.FC = () => {
             setShowBookingModal(true);
         };
 
-        const handleStatusFilterClick = (value: 'all' | 'available' | 'occupied' | 'maintenance') => {
-            setRoomStatusFilter(value);
+        const handleStatusFilterClick = (value: string) => {
+            setRoomStatusFilter(value as 'all' | 'available' | 'occupied' | 'maintenance');
         };
 
-        const handleTypeFilterClick = (value: 'all' | 'Kos' | 'Homestay') => {
-            setRoomTypeFilter(value);
+        const handleTypeFilterClick = (value: string) => {
+            setRoomTypeFilter(value as 'all' | 'Kos' | 'Homestay');
         };
 
         return (
