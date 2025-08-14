@@ -1,4 +1,4 @@
-"use client"
+"use clientg"
 
 import React, { useState } from 'react';
 import { Calendar, Home, Users, CreditCard, Bell, Search, Plus, Edit, Trash2, CheckCircle, Clock, Download, Menu, X, LucideProps, LogIn, LogOut, BedDouble, Building, UserCheck, Filter, Wrench } from 'lucide-react';
@@ -76,7 +76,7 @@ interface FilterPillProps {
     label: string;
     value: string;
     activeValue: string;
-    onClick: (value: any) => void;
+    onClick: (value: string) => void;
 }
 
 
@@ -364,6 +364,14 @@ const KosManagementSystem: React.FC = () => {
             setShowBookingModal(true);
         };
 
+        const handleStatusFilterClick = (value: 'all' | 'available' | 'occupied' | 'maintenance') => {
+            setRoomStatusFilter(value);
+        };
+
+        const handleTypeFilterClick = (value: 'all' | 'Kos' | 'Homestay') => {
+            setRoomTypeFilter(value);
+        };
+
         return (
             <div className="space-y-6">
                 <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
@@ -386,18 +394,18 @@ const KosManagementSystem: React.FC = () => {
                         <div className="flex-1">
                             <label className="block text-sm font-medium text-gray-700 mb-2">Status Kamar</label>
                             <div className="flex flex-wrap gap-2">
-                                <FilterPill label="Semua" value="all" activeValue={roomStatusFilter} onClick={setRoomStatusFilter} />
-                                <FilterPill label="Tersedia" value="available" activeValue={roomStatusFilter} onClick={setRoomStatusFilter} />
-                                <FilterPill label="Terisi" value="occupied" activeValue={roomStatusFilter} onClick={setRoomStatusFilter} />
-                                <FilterPill label="Rusak" value="maintenance" activeValue={roomStatusFilter} onClick={setRoomStatusFilter} />
+                                <FilterPill label="Semua" value="all" activeValue={roomStatusFilter} onClick={handleStatusFilterClick} />
+                                <FilterPill label="Tersedia" value="available" activeValue={roomStatusFilter} onClick={handleStatusFilterClick} />
+                                <FilterPill label="Terisi" value="occupied" activeValue={roomStatusFilter} onClick={handleStatusFilterClick} />
+                                <FilterPill label="Rusak" value="maintenance" activeValue={roomStatusFilter} onClick={handleStatusFilterClick} />
                             </div>
                         </div>
                         <div className="flex-1">
                             <label className="block text-sm font-medium text-gray-700 mb-2">Tipe Kamar</label>
                             <div className="flex flex-wrap gap-2">
-                                <FilterPill label="Semua" value="all" activeValue={roomTypeFilter} onClick={setRoomTypeFilter} />
-                                <FilterPill label="Kos" value="Kos" activeValue={roomTypeFilter} onClick={setRoomTypeFilter} />
-                                <FilterPill label="Homestay" value="Homestay" activeValue={roomTypeFilter} onClick={setRoomTypeFilter} />
+                                <FilterPill label="Semua" value="all" activeValue={roomTypeFilter} onClick={handleTypeFilterClick} />
+                                <FilterPill label="Kos" value="Kos" activeValue={roomTypeFilter} onClick={handleTypeFilterClick} />
+                                <FilterPill label="Homestay" value="Homestay" activeValue={roomTypeFilter} onClick={handleTypeFilterClick} />
                             </div>
                         </div>
                     </div>
