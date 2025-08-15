@@ -1,19 +1,27 @@
 "use client"
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect} from 'react';
 import { Calendar, Home, Users, CreditCard, Bell, Search, Plus, Edit, Trash2, CheckCircle, Clock, Download, Menu, X, LucideProps, LogIn, LogOut, BedDouble, Building, UserCheck, Filter } from 'lucide-react';
 
 // --- TYPE DEFINITIONS ---
+
+interface Booking {
+    id: number;
+    tenantName: string;
+    checkIn: string;
+    checkOut?: string;
+}
 
 interface Room {
     id: number;
     number: string;
     type: 'Kos' | 'Homestay';
     price: number;
-    status: 'available' | 'occupied';
+    status: 'available' | 'occupied' | 'booked';
     floor: number;
     facilities: string[];
     tenant: string | null;
+    bookings: Booking[];
 }
 
 interface Tenant {
@@ -25,7 +33,11 @@ interface Tenant {
     type: 'monthly' | 'daily';
     paymentStatus: 'paid' | 'pending';
     lastPayment: string;
+    amountOwed: number;
     checkOut?: string;
+    hasVehicle?: boolean;
+    vehicleType?: 'Roda 2' | 'Roda 4';
+    licensePlate?: string;
 }
 
 interface Payment {
@@ -43,7 +55,7 @@ interface StatCardProps {
     title: string;
     value: string | number;
     icon: React.ReactElement<LucideProps>;
-    color: 'blue' | 'green' | 'red' | 'indigo';
+    color: 'blue' | 'green' | 'red' | 'indigo' | 'orange';
     onButtonClick?: () => void;
 }
 
@@ -64,7 +76,18 @@ interface BookingModalProps {
     onClose: () => void;
     rooms: Room[];
     initialRoomId: number | null;
-    onSubmit: (bookingData: {roomId: number, name: string, phone: string, checkIn: string, checkOut?: string}) => void;
+    onSubmit: (bookingData: {
+        roomId: number;
+        name: string;
+        phone: string;
+        checkIn: string;
+        checkOut?: string;
+        rentalType: 'monthly' | 'daily';
+        finalPrice: number;
+        hasVehicle: boolean;
+        vehicleType?: 'Roda 2' | 'Roda 4';
+        licensePlate?: string;
+    }) => void;
 }
 
 interface EditTenantModalProps {
@@ -78,7 +101,6 @@ interface PaymentModalProps {
     show: boolean;
     onClose: () => void;
     tenant: Tenant | null;
-    roomPrice: number;
     onSubmit: (paymentData: { tenant: Tenant, method: string, date: string, amount: number }) => void;
 }
 
@@ -102,16 +124,18 @@ const KosManagementSystem: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [tenantSearchTerm, setTenantSearchTerm] = useState('');
     const [paymentSearchTerm, setPaymentSearchTerm] = useState('');
+    const [bookingSearchTerm, setBookingSearchTerm] = useState('');
     const [showBookingModal, setShowBookingModal] = useState(false);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [showEditTenantModal, setShowEditTenantModal] = useState(false);
     const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
     const [tenantForPayment, setTenantForPayment] = useState<Tenant | null>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Default to closed on mobile
-    const [roomStatusFilter, setRoomStatusFilter] = useState<'all' | 'available' | 'occupied'>('all');
+    const [roomStatusFilter, setRoomStatusFilter] = useState<'all' | 'available' | 'occupied' | 'booked'>('all');
     const [roomTypeFilter, setRoomTypeFilter] = useState<'all' | 'Kos' | 'Homestay'>('all');
     const [tenantPaymentFilter, setTenantPaymentFilter] = useState<'all' | 'paid' | 'pending'>('all');
     const [tenantTypeFilter, setTenantTypeFilter] = useState<'all' | 'monthly' | 'daily'>('all');
+    const [tenantVehicleFilter, setTenantVehicleFilter] = useState<'all' | 'yes' | 'no'>('all');
     const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>('all');
     const [initialBookingRoomId, setInitialBookingRoomId] = useState<number | null>(null);
     const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
@@ -119,18 +143,18 @@ const KosManagementSystem: React.FC = () => {
 
     // --- MOCK DATA (replace with API calls in a real application) ---
     const [rooms, setRooms] = useState<Room[]>([
-        { id: 1, number: 'A01', type: 'Kos', price: 800000, status: 'available', floor: 1, facilities: ['AC', 'WiFi', 'Lemari'], tenant: null },
-        { id: 2, number: 'A02', type: 'Kos', price: 800000, status: 'occupied', floor: 1, facilities: ['AC', 'WiFi', 'Lemari'], tenant: 'Ahmad Rizki' },
-        { id: 3, number: 'A03', type: 'Kos', price: 1200000, status: 'available', floor: 1, facilities: ['AC', 'WiFi', 'Lemari', 'TV', 'Kulkas'], tenant: null },
-        { id: 4, number: 'H01', type: 'Homestay', price: 250000, status: 'available', floor: 2, facilities: ['AC', 'WiFi', 'Lemari'], tenant: null },
-        { id: 5, number: 'H02', type: 'Homestay', price: 450000, status: 'occupied', floor: 2, facilities: ['AC', 'WiFi', 'Lemari', 'TV', 'Kulkas', 'Balkon'], tenant: 'Sari Dewi' },
-        { id: 6, number: 'B01', type: 'Kos', price: 800000, status: 'available', floor: 2, facilities: ['AC', 'WiFi', 'Lemari'], tenant: null },
+        { id: 1, number: 'A01', type: 'Kos', price: 800000, status: 'available', floor: 1, facilities: ['AC', 'WiFi', 'Lemari'], tenant: null, bookings: [] },
+        { id: 2, number: 'A02', type: 'Kos', price: 800000, status: 'occupied', floor: 1, facilities: ['AC', 'WiFi', 'Lemari'], tenant: 'Ahmad Rizki', bookings: [{id: 1, tenantName: 'Ahmad Rizki', checkIn: '2024-01-15'}] },
+        { id: 3, number: 'A03', type: 'Kos', price: 1200000, status: 'available', floor: 1, facilities: ['AC', 'WiFi', 'Lemari', 'TV', 'Kulkas'], tenant: null, bookings: [] },
+        { id: 4, number: 'H01', type: 'Homestay', price: 250000, status: 'available', floor: 2, facilities: ['AC', 'WiFi', 'Lemari'], tenant: null, bookings: [] },
+        { id: 5, number: 'H02', type: 'Homestay', price: 450000, status: 'occupied', floor: 2, facilities: ['AC', 'WiFi', 'Lemari', 'TV', 'Kulkas', 'Balkon'], tenant: 'Sari Dewi', bookings: [{id: 2, tenantName: 'Sari Dewi', checkIn: '2024-08-12', checkOut: '2024-08-15'}] },
+        { id: 6, number: 'B01', type: 'Kos', price: 800000, status: 'available', floor: 2, facilities: ['AC', 'WiFi', 'Lemari'], tenant: null, bookings: [] },
     ]);
 
     const [tenants, setTenants] = useState<Tenant[]>([
-        { id: 1, name: 'Ahmad Rizki', room: 'A02', phone: '0812-3456-7890', checkIn: '2024-01-15', type: 'monthly', paymentStatus: 'paid', lastPayment: '2024-08-01' },
-        { id: 2, name: 'Sari Dewi', room: 'H02', phone: '0813-9876-5432', checkIn: '2024-08-12', type: 'daily', paymentStatus: 'paid', lastPayment: '2024-08-12' },
-        { id: 3, name: 'Budi Santoso', room: 'C01', phone: '0814-1111-2222', checkIn: '2024-08-10', type: 'daily', checkOut: '2024-08-15', paymentStatus: 'paid', lastPayment: '2024-08-10' },
+        { id: 1, name: 'Ahmad Rizki', room: 'A02', phone: '0812-3456-7890', checkIn: '2024-01-15', type: 'monthly', paymentStatus: 'paid', lastPayment: '2024-08-01', amountOwed: 800000, hasVehicle: true, vehicleType: 'Roda 2', licensePlate: 'B 1234 ABC' },
+        { id: 2, name: 'Sari Dewi', room: 'H02', phone: '0813-9876-5432', checkIn: '2024-08-12', type: 'daily', paymentStatus: 'paid', lastPayment: '2024-08-12', amountOwed: 450000, hasVehicle: false },
+        { id: 3, name: 'Budi Santoso', room: 'C01', phone: '0814-1111-2222', checkIn: '2024-08-10', type: 'daily', checkOut: '2024-08-15', paymentStatus: 'paid', lastPayment: '2024-08-10', amountOwed: 150000, hasVehicle: true, vehicleType: 'Roda 4', licensePlate: 'D 4321 XYZ' },
     ]);
 
     const [payments, setPayments] = useState<Payment[]>([
@@ -147,27 +171,45 @@ const KosManagementSystem: React.FC = () => {
         }, 3000);
     };
 
+    // --- HELPER FUNCTIONS ---
+    const formatDate = (dateString: string) => {
+        if (!dateString) return '-';
+        const [year, month, day] = dateString.split('-');
+        return `${day}/${month}/${year}`;
+    };
+
     // Derived state for dashboard stats
     const occupiedRooms = rooms.filter(room => room.status === 'occupied').length;
     const availableRooms = rooms.filter(room => room.status === 'available').length;
+    const bookedRooms = rooms.filter(room => room.status === 'booked').length;
     const pendingPayments = tenants.filter(tenant => tenant.paymentStatus === 'pending').length;
     const monthlyRevenue = payments
         .filter(payment => payment.date.startsWith('2024-08') && payment.status === 'confirmed')
         .reduce((sum, payment) => sum + payment.amount, 0);
 
     // --- HANDLER FUNCTIONS ---
-    const handleBookingSubmit = (bookingData: {roomId: number, name: string, phone: string, checkIn: string, checkOut?: string}) => {
-        const { roomId, name, checkIn } = bookingData;
+    const handleBookingSubmit = (bookingData: {roomId: number, name: string, phone: string, checkIn: string, checkOut?: string, rentalType: 'monthly' | 'daily', finalPrice: number, hasVehicle: boolean, vehicleType?: 'Roda 2' | 'Roda 4', licensePlate?: string}) => {
+        const { roomId, name, checkIn, rentalType, finalPrice, hasVehicle, vehicleType, licensePlate } = bookingData;
         const roomBooked = rooms.find(r => r.id === roomId);
         if (!roomBooked) return;
 
+        const today = new Date().toISOString().split('T')[0];
+        const isFutureBooking = checkIn > today;
+        const newStatus = isFutureBooking ? 'booked' : 'occupied';
+
+        const newBooking: Booking = {
+            id: Date.now(),
+            tenantName: name,
+            checkIn: checkIn,
+            checkOut: bookingData.checkOut,
+        };
+
         // Update room status
         setRooms(prevRooms => prevRooms.map(room =>
-            room.id === roomId ? { ...room, status: 'occupied', tenant: name } : room
+            room.id === roomId ? { ...room, status: newStatus, tenant: isFutureBooking ? null : name, bookings: [...room.bookings, newBooking] } : room
         ));
 
-        const isHomestay = roomBooked.type === 'Homestay';
-        const paymentStatus = isHomestay ? 'paid' : 'pending';
+        const paymentStatus = (rentalType === 'daily' && !isFutureBooking) ? 'paid' : 'pending';
 
         // Add new tenant
         const newTenant: Tenant = {
@@ -176,19 +218,23 @@ const KosManagementSystem: React.FC = () => {
             room: roomBooked.number,
             phone: bookingData.phone,
             checkIn,
-            type: isHomestay ? 'daily' : 'monthly',
+            type: rentalType,
             paymentStatus,
-            lastPayment: isHomestay ? checkIn : ''
+            lastPayment: (rentalType === 'daily' && !isFutureBooking) ? checkIn : '',
+            amountOwed: finalPrice,
+            hasVehicle,
+            vehicleType: hasVehicle ? vehicleType : undefined,
+            licensePlate: hasVehicle ? licensePlate : undefined,
         };
         setTenants(prevTenants => [...prevTenants, newTenant]);
 
-        // If it's a homestay, also add a payment record for upfront payment
-        if (isHomestay) {
+        // If it's a daily rental for today, also add a payment record for upfront payment
+        if (rentalType === 'daily' && !isFutureBooking) {
             const newPayment: Payment = {
                 id: payments.length + 1,
                 tenant: name,
                 room: roomBooked.number,
-                amount: roomBooked.price,
+                amount: finalPrice,
                 date: checkIn,
                 type: 'daily',
                 status: 'confirmed',
@@ -207,7 +253,7 @@ const KosManagementSystem: React.FC = () => {
 
         // In a real app, you'd also handle payments, etc.
         setRooms(prevRooms => prevRooms.map(room =>
-            room.id === roomId ? { ...room, status: 'available', tenant: null } : room
+            room.id === roomId ? { ...room, status: 'available', tenant: null, bookings: room.bookings.filter(b => b.tenantName !== room.tenant) } : room
         ));
 
         // Remove tenant from list or mark as inactive
@@ -240,7 +286,7 @@ const KosManagementSystem: React.FC = () => {
         if (!tenantToDelete) return;
 
         // Free up the room
-        setRooms(rooms.map(r => r.number === tenantToDelete.room ? {...r, status: 'available', tenant: null} : r));
+        setRooms(rooms.map(r => r.number === tenantToDelete.room ? {...r, status: 'available', tenant: null, bookings: []} : r));
 
         // Delete tenant
         setTenants(tenants.filter(t => t.id !== tenantId));
@@ -276,6 +322,36 @@ const KosManagementSystem: React.FC = () => {
         setShowPaymentModal(false);
         setTenantForPayment(null);
         showNotification('Pembayaran berhasil dicatat!', 'success');
+    };
+
+    const handleCancelBooking = (roomId: number, bookingId: number) => {
+        const roomToCancel = rooms.find(r => r.id === roomId);
+        if (!roomToCancel) return;
+
+        const updatedBookings = roomToCancel.bookings.filter(b => b.id !== bookingId);
+        const newStatus = updatedBookings.length > 0 ? 'booked' : 'available';
+
+        setRooms(prevRooms => prevRooms.map(room =>
+            room.id === roomId ? { ...room, status: newStatus, bookings: updatedBookings } : room
+        ));
+
+        const bookingToCancel = roomToCancel.bookings.find(b => b.id === bookingId);
+        if (bookingToCancel) {
+            setTenants(prevTenants => prevTenants.filter(t => t.name !== bookingToCancel.tenantName));
+            setPayments(prevPayments => prevPayments.filter(p => p.tenant !== bookingToCancel.tenantName));
+        }
+        showNotification(`Booking untuk kamar ${roomToCancel.number} berhasil dibatalkan.`, 'success');
+    };
+
+    const handleManualCheckIn = (roomId: number, bookingId: number) => {
+        const roomToCheckIn = rooms.find(r => r.id === roomId);
+        const booking = roomToCheckIn?.bookings.find(b => b.id === bookingId);
+        if (!roomToCheckIn || !booking) return;
+
+        setRooms(prevRooms => prevRooms.map(room =>
+            room.id === roomId ? { ...room, status: 'occupied', tenant: booking.tenantName } : room
+        ));
+        showNotification(`Kamar ${roomToCheckIn.number} berhasil di-check-in.`, 'success');
     };
 
 
@@ -362,16 +438,17 @@ const KosManagementSystem: React.FC = () => {
     // --- SUB-COMPONENTS FOR EACH TAB ---
 
     const Dashboard: React.FC = () => {
-        const handleViewDetails = (status: 'available' | 'occupied') => {
+        const handleViewDetails = (status: 'available' | 'occupied' | 'booked') => {
             setActiveTab('rooms');
             setRoomStatusFilter(status);
         };
 
         return (
             <div className="space-y-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                     <StatCard title="Kamar Terisi" value={occupiedRooms} icon={<Users className="h-6 w-6 text-green-600" />} color="green" onButtonClick={() => handleViewDetails('occupied')} />
                     <StatCard title="Kamar Tersedia" value={availableRooms} icon={<CheckCircle className="h-6 w-6 text-indigo-600" />} color="indigo" onButtonClick={() => handleViewDetails('available')} />
+                    <StatCard title="Kamar Dipesan" value={bookedRooms} icon={<Calendar className="h-6 w-6 text-blue-600" />} color="blue" onButtonClick={() => handleViewDetails('booked')} />
                     <StatCard title="Pembayaran Pending" value={pendingPayments} icon={<Bell className="h-6 w-6 text-red-600" />} color="red" />
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -415,14 +492,16 @@ const KosManagementSystem: React.FC = () => {
             return statusMatch && typeMatch && searchMatch;
         });
 
-        const getStatusPill = (status: 'available' | 'occupied') => {
+        const getStatusPill = (status: 'available' | 'occupied' | 'booked') => {
             const styles = {
                 available: 'bg-green-100 text-green-800',
                 occupied: 'bg-red-100 text-red-800',
+                booked: 'bg-blue-100 text-blue-800',
             };
             const text = {
                 available: 'Tersedia',
                 occupied: 'Terisi',
+                booked: 'Dipesan',
             };
             return (
                 <span className={`px-2.5 py-1 text-xs font-semibold leading-5 rounded-full ${styles[status]}`}>
@@ -437,7 +516,7 @@ const KosManagementSystem: React.FC = () => {
         };
 
         const handleStatusFilterClick = (value: string) => {
-            setRoomStatusFilter(value as 'all' | 'available' | 'occupied');
+            setRoomStatusFilter(value as 'all' | 'available' | 'occupied' | 'booked');
         };
 
         const handleTypeFilterClick = (value: string) => {
@@ -469,6 +548,7 @@ const KosManagementSystem: React.FC = () => {
                                 <FilterPill label="Semua" value="all" activeValue={roomStatusFilter} onClick={handleStatusFilterClick} />
                                 <FilterPill label="Tersedia" value="available" activeValue={roomStatusFilter} onClick={handleStatusFilterClick} />
                                 <FilterPill label="Terisi" value="occupied" activeValue={roomStatusFilter} onClick={handleStatusFilterClick} />
+                                <FilterPill label="Dipesan" value="booked" activeValue={roomStatusFilter} onClick={handleStatusFilterClick} />
                             </div>
                         </div>
                         <div className="flex-1">
@@ -516,16 +596,14 @@ const KosManagementSystem: React.FC = () => {
                             {room.type}
                         </span>
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">{getStatusPill(room.status as 'available' | 'occupied')}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap">{getStatusPill(room.status as 'available' | 'occupied' | 'booked')}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 font-medium">Rp {room.price.toLocaleString('id-ID')}<span className="text-gray-500 text-xs">{room.type === 'Kos' ? '/bulan' : '/hari'}</span></td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{room.tenant || '-'}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                         <div className="flex items-center gap-4">
                                             {(() => {
-                                                if (room.status === 'available') {
-                                                    return room.type === 'Kos'
-                                                        ? <button onClick={() => handleOpenBookingModal(room.id)} className="text-blue-600 hover:text-blue-900 transition-colors" title="Booking"><Plus className="h-5 w-5"/></button>
-                                                        : <button onClick={() => handleOpenBookingModal(room.id)} className="text-green-600 hover:text-green-900 transition-colors" title="Check-in"><LogIn className="h-5 w-5"/></button>;
+                                                if (room.status === 'available' || room.status === 'booked') {
+                                                    return <button onClick={() => handleOpenBookingModal(room.id)} className="text-blue-600 hover:text-blue-900 transition-colors" title="Booking"><Plus className="h-5 w-5"/></button>
                                                 } else if (room.status === 'occupied') {
                                                     if (room.type === 'Kos') {
                                                         return (
@@ -556,10 +634,12 @@ const KosManagementSystem: React.FC = () => {
         const filteredTenants = tenants.filter(tenant => {
             const statusMatch = tenantPaymentFilter === 'all' || tenant.paymentStatus === tenantPaymentFilter;
             const typeMatch = tenantTypeFilter === 'all' || tenant.type === tenantTypeFilter;
+            const vehicleMatch = tenantVehicleFilter === 'all' || (tenantVehicleFilter === 'yes' && tenant.hasVehicle) || (tenantVehicleFilter === 'no' && !tenant.hasVehicle);
             const searchMatch = tenantSearchTerm === '' ||
                 tenant.name.toLowerCase().includes(tenantSearchTerm.toLowerCase()) ||
-                tenant.room.toLowerCase().includes(tenantSearchTerm.toLowerCase());
-            return statusMatch && typeMatch && searchMatch;
+                tenant.room.toLowerCase().includes(tenantSearchTerm.toLowerCase()) ||
+                (tenant.licensePlate && tenant.licensePlate.toLowerCase().includes(tenantSearchTerm.toLowerCase()));
+            return statusMatch && typeMatch && searchMatch && vehicleMatch;
         });
 
         return (
@@ -587,12 +667,20 @@ const KosManagementSystem: React.FC = () => {
                                 <FilterPill label="Harian" value="daily" activeValue={tenantTypeFilter} onClick={(v) => setTenantTypeFilter(v as 'all' | 'monthly' | 'daily')} />
                             </div>
                         </div>
+                        <div className="flex-1">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Kendaraan</label>
+                            <div className="flex flex-wrap gap-2">
+                                <FilterPill label="Semua" value="all" activeValue={tenantVehicleFilter} onClick={(v) => setTenantVehicleFilter(v as 'all' | 'yes' | 'no')} />
+                                <FilterPill label="Ada" value="yes" activeValue={tenantVehicleFilter} onClick={(v) => setTenantVehicleFilter(v as 'all' | 'yes' | 'no')} />
+                                <FilterPill label="Tidak Ada" value="no" activeValue={tenantVehicleFilter} onClick={(v) => setTenantVehicleFilter(v as 'all' | 'yes' | 'no')} />
+                            </div>
+                        </div>
                     </div>
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
                         <input
                             type="text"
-                            placeholder="Cari nama atau kamar penghuni..."
+                            placeholder="Cari nama, kamar, atau plat nomor..."
                             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder:text-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             value={tenantSearchTerm}
                             onChange={(e) => setTenantSearchTerm(e.target.value)}
@@ -607,6 +695,7 @@ const KosManagementSystem: React.FC = () => {
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kamar</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Telepon</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kendaraan</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check-in</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipe Sewa</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status Bayar</th>
@@ -621,7 +710,10 @@ const KosManagementSystem: React.FC = () => {
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{tenant.room}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{tenant.phone}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{tenant.checkIn}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {tenant.hasVehicle ? `${tenant.vehicleType} (${tenant.licensePlate})` : '-'}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatDate(tenant.checkIn)}</td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2.5 py-1 text-xs font-semibold leading-5 rounded-full ${tenant.type === 'monthly' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'}`}>
                       {tenant.type === 'monthly' ? 'Bulanan' : 'Harian'}
@@ -717,11 +809,11 @@ const KosManagementSystem: React.FC = () => {
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{payment.tenant}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{payment.room}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Rp {payment.amount.toLocaleString('id-ID')}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{payment.date}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatDate(payment.date)}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{payment.method}</td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold leading-5 rounded-full bg-green-100 text-green-800">
-                      <span className="h-1.5 w-1.5 rounded-full bg-green-600"></span>
+                      <span className={`h-1.5 w-1.5 rounded-full bg-green-600`}></span>
                       Terkonfirmasi
                     </span>
                                     </td>
@@ -741,12 +833,60 @@ const KosManagementSystem: React.FC = () => {
         );
     };
 
+    const BookingManagement: React.FC = () => {
+        const bookedRooms = rooms.filter(room => room.status === 'booked');
+
+        return (
+            <div className="space-y-6">
+                <h2 className="text-2xl font-bold text-gray-900">Manajemen Pesanan Booking</h2>
+                <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full w-full">
+                            <thead className="bg-gray-50">
+                            <tr>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kamar</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama Pemesan</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check-in</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check-out</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
+                            </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                            {bookedRooms.flatMap(room =>
+                                room.bookings.map(booking => (
+                                    <tr key={booking.id} className="hover:bg-gray-50 transition-colors">
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{room.number}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{booking.tenantName}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatDate(booking.checkIn)}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{booking.checkOut ? formatDate(booking.checkOut) : '-'}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                            <div className="flex items-center gap-4">
+                                                <button onClick={() => handleManualCheckIn(room.id, booking.id)} className="text-green-600 hover:text-green-900 transition-colors" title="Check-in Manual"><LogIn className="h-5 w-5"/></button>
+                                                <button onClick={() => handleCancelBooking(room.id, booking.id)} className="text-red-600 hover:text-red-900 transition-colors" title="Batalkan Booking"><X className="h-5 w-5"/></button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     // --- MODAL COMPONENTS ---
 
     const BookingModal: React.FC<BookingModalProps> = ({ show, onClose, rooms, initialRoomId, onSubmit }) => {
         const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
-        const [formData, setFormData] = useState({ name: '', phone: '', checkIn: '', checkOut: '' });
+        const [formData, setFormData] = useState({ name: '', phone: '', checkIn: '', checkOut: '', licensePlate: '' });
         const [totalPrice, setTotalPrice] = useState(0);
+        const [rentalType, setRentalType] = useState<'monthly' | 'daily'>('monthly');
+        const [manualDailyPrice, setManualDailyPrice] = useState('');
+        const [hasVehicle, setHasVehicle] = useState(false);
+        const [vehicleType, setVehicleType] = useState<'Roda 2' | 'Roda 4'>('Roda 2');
+        const [dateError, setDateError] = useState<string | null>(null);
 
         const initialRoomType = rooms.find(r => r.id === initialRoomId)?.type || null;
 
@@ -755,34 +895,69 @@ const KosManagementSystem: React.FC = () => {
         useEffect(() => {
             if (selectedRoom) {
                 if (selectedRoom.type === 'Kos') {
-                    setTotalPrice(selectedRoom.price);
-                } else if (selectedRoom.type === 'Homestay' && formData.checkIn && formData.checkOut) {
+                    if (rentalType === 'monthly') {
+                        setTotalPrice(selectedRoom.price);
+                    } else { // daily
+                        const dailyPrice = parseInt(manualDailyPrice, 10) || 0;
+                        const startDate = new Date(formData.checkIn);
+                        const endDate = new Date(formData.checkOut);
+                        if (formData.checkIn && formData.checkOut && endDate > startDate) {
+                            const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+                            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                            setTotalPrice(diffDays * dailyPrice);
+                        } else {
+                            setTotalPrice(0);
+                        }
+                    }
+                } else if (selectedRoom.type === 'Homestay') {
+                    setRentalType('daily');
                     const startDate = new Date(formData.checkIn);
                     const endDate = new Date(formData.checkOut);
-                    if (endDate > startDate) {
+                    if (formData.checkIn && formData.checkOut && endDate > startDate) {
                         const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
                         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                         setTotalPrice(diffDays * selectedRoom.price);
                     } else {
                         setTotalPrice(0);
                     }
-                } else {
-                    setTotalPrice(selectedRoom.price);
                 }
             } else {
                 setTotalPrice(0);
             }
-        }, [selectedRoom, formData.checkIn, formData.checkOut]);
+        }, [selectedRoom, formData.checkIn, formData.checkOut, rentalType, manualDailyPrice]);
 
         useEffect(() => {
             setSelectedRoomId(initialRoomId);
-        }, [initialRoomId]);
+            if (initialRoomId) {
+                const room = rooms.find(r => r.id === initialRoomId);
+                if (room?.type === 'Homestay') {
+                    setRentalType('daily');
+                } else {
+                    setRentalType('monthly');
+                }
+            }
+        }, [initialRoomId, rooms]);
 
-        const availableRoomsForDropdown = rooms.filter(room => {
-            if (room.status !== 'available' && room.id !== initialRoomId) return false;
-            if (initialRoomType) return room.type === initialRoomType;
-            return true;
-        });
+        useEffect(() => {
+            if (selectedRoom && formData.checkIn && formData.checkOut) {
+                let overlap = false;
+                for (const booking of selectedRoom.bookings) {
+                    if (new Date(formData.checkIn) < new Date(booking.checkOut!) && new Date(formData.checkOut) > new Date(booking.checkIn)) {
+                        overlap = true;
+                        break;
+                    }
+                }
+                if (overlap) {
+                    setDateError('Tanggal yang dipilih tumpang tindih dengan pesanan lain.');
+                } else {
+                    setDateError(null);
+                }
+            } else {
+                setDateError(null);
+            }
+        }, [selectedRoom, formData.checkIn, formData.checkOut]);
+
+        const availableRoomsForDropdown = rooms.filter(room => room.status !== 'occupied');
 
         const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
             const { name, value } = e.target;
@@ -792,69 +967,140 @@ const KosManagementSystem: React.FC = () => {
         const handleRoomSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
             const roomId = parseInt(e.target.value, 10);
             setSelectedRoomId(roomId || null);
+            const room = rooms.find(r => r.id === roomId);
+            if (room?.type === 'Homestay') {
+                setRentalType('daily');
+            } else {
+                setRentalType('monthly');
+            }
         };
 
         const handleFormSubmit = () => {
             if (!selectedRoomId) return;
-            onSubmit({ roomId: selectedRoomId, ...formData });
+            onSubmit({
+                roomId: selectedRoomId,
+                ...formData,
+                rentalType,
+                finalPrice: totalPrice,
+                hasVehicle,
+                vehicleType: hasVehicle ? vehicleType : undefined,
+                licensePlate: hasVehicle ? formData.licensePlate : undefined,
+            });
             handleCloseModal();
         };
 
         const handleCloseModal = () => {
-            setFormData({ name: '', phone: '', checkIn: '', checkOut: '' });
+            setFormData({ name: '', phone: '', checkIn: '', checkOut: '', licensePlate: '' });
             setSelectedRoomId(null);
+            setManualDailyPrice('');
+            setHasVehicle(false);
+            setVehicleType('Roda 2');
             onClose();
         };
 
         if (!show) return null;
 
         return (
-            <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 transition-opacity">
-                <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4 transform transition-all">
+            <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg mx-4 transform transition-all">
                     <h3 className="text-xl font-semibold text-gray-900 mb-6">Tambah Booking Baru</h3>
-                    <div className="space-y-4">
-                        <InputField label="Nama Penghuni" type="text" name="name" placeholder="Contoh: Budi Santoso" value={formData.name} onChange={handleInputChange} />
-                        <InputField label="Nomor Telepon" type="tel" name="phone" placeholder="Contoh: 081234567890" value={formData.phone} onChange={handleInputChange} />
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Pilih Kamar</label>
-                            <select
-                                onChange={handleRoomSelect}
-                                value={selectedRoomId || ''}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900"
-                            >
-                                <option value="">Pilih kamar yang tersedia...</option>
-                                {availableRoomsForDropdown.map(room => (
-                                    <option key={room.id} value={room.id}>
-                                        Kamar {room.number} - {room.type} (Rp {room.price.toLocaleString('id-ID')})
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
+                    <div className="max-h-[70vh] overflow-y-auto pr-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <InputField label="Nama Penghuni" type="text" name="name" placeholder="Contoh: Budi Santoso" value={formData.name} onChange={handleInputChange} />
+                            <InputField label="Nomor Telepon" type="tel" name="phone" placeholder="Contoh: 081234567890" value={formData.phone} onChange={handleInputChange} />
 
-                        {selectedRoom && (
-                            <>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Tipe Sewa</label>
-                                    <p className="text-gray-800 bg-gray-100 px-3 py-2 rounded-lg">
-                                        {selectedRoom.type === 'Kos' ? 'Bulanan (Kos)' : 'Harian (Homestay)'}
-                                    </p>
-                                </div>
-                                <InputField label="Tanggal Check-in" type="date" name="checkIn" value={formData.checkIn} onChange={handleInputChange} />
-                                {selectedRoom.type === 'Homestay' && (
-                                    <InputField label="Tanggal Check-out" type="date" name="checkOut" value={formData.checkOut} onChange={handleInputChange} min={formData.checkIn} />
-                                )}
-                                {totalPrice > 0 && (
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Total Bayar</label>
-                                        <p className="text-lg font-bold text-gray-900 bg-gray-100 px-3 py-2 rounded-lg">
-                                            Rp {totalPrice.toLocaleString('id-ID')}
-                                        </p>
+                            <div className="sm:col-span-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Pilih Kamar</label>
+                                <select
+                                    onChange={handleRoomSelect}
+                                    value={selectedRoomId || ''}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900"
+                                >
+                                    <option value="">Pilih kamar yang tersedia...</option>
+                                    {availableRoomsForDropdown.map(room => (
+                                        <option key={room.id} value={room.id}>
+                                            Kamar {room.number} - {room.type} (Rp {room.price.toLocaleString('id-ID')})
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {selectedRoom && (
+                                <>
+                                    {selectedRoom.bookings.length > 0 && (
+                                        <div className="sm:col-span-2 bg-blue-50 p-3 rounded-lg">
+                                            <p className="text-sm font-semibold text-blue-800">Jadwal Terpesan:</p>
+                                            <ul className="list-disc list-inside text-sm text-blue-700">
+                                                {selectedRoom.bookings.map(b => (
+                                                    <li key={b.id}>{formatDate(b.checkIn)} s/d {b.checkOut ? formatDate(b.checkOut) : '...'}</li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+
+                                    {selectedRoom.type === 'Kos' && (
+                                        <div className="sm:col-span-2">
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Tipe Sewa</label>
+                                            <div className="flex gap-4">
+                                                <label className="flex items-center">
+                                                    <input type="radio" name="rentalType" value="monthly" checked={rentalType === 'monthly'} onChange={() => setRentalType('monthly')} className="mr-2"/>
+                                                    Bulanan
+                                                </label>
+                                                <label className="flex items-center">
+                                                    <input type="radio" name="rentalType" value="daily" checked={rentalType === 'daily'} onChange={() => setRentalType('daily')} className="mr-2"/>
+                                                    Harian
+                                                </label>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <InputField label="Tanggal Check-in" type="date" name="checkIn" value={formData.checkIn} onChange={handleInputChange} />
+                                    {(selectedRoom.type === 'Homestay' || (selectedRoom.type === 'Kos' && rentalType === 'daily')) && (
+                                        <InputField label="Tanggal Check-out" type="date" name="checkOut" value={formData.checkOut} onChange={handleInputChange} min={formData.checkIn} />
+                                    )}
+                                    {dateError && <p className="text-red-500 text-sm sm:col-span-2">{dateError}</p>}
+                                    {selectedRoom.type === 'Kos' && rentalType === 'daily' && (
+                                        <div className="sm:col-span-2">
+                                            <InputField label="Harga Harian" type="number" name="manualDailyPrice" placeholder="Masukkan harga per hari" value={manualDailyPrice} onChange={(e) => setManualDailyPrice(e.target.value)} />
+                                        </div>
+                                    )}
+
+                                    <div className="sm:col-span-2 flex items-center">
+                                        <input type="checkbox" id="hasVehicle" checked={hasVehicle} onChange={(e) => setHasVehicle(e.target.checked)} className="mr-2 h-4 w-4"/>
+                                        <label htmlFor="hasVehicle" className="text-sm font-medium text-gray-700">Bawa Kendaraan?</label>
                                     </div>
-                                )}
-                            </>
-                        )}
+
+                                    {hasVehicle && (
+                                        <div className="sm:col-span-2 pl-6 border-l-2 border-gray-200 space-y-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">Tipe Kendaraan</label>
+                                                <div className="flex gap-4">
+                                                    <label className="flex items-center">
+                                                        <input type="radio" name="vehicleType" value="Roda 2" checked={vehicleType === 'Roda 2'} onChange={() => setVehicleType('Roda 2')} className="mr-2"/>
+                                                        Roda 2
+                                                    </label>
+                                                    <label className="flex items-center">
+                                                        <input type="radio" name="vehicleType" value="Roda 4" checked={vehicleType === 'Roda 4'} onChange={() => setVehicleType('Roda 4')} className="mr-2"/>
+                                                        Roda 4
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            <InputField label="Plat Nomor" type="text" name="licensePlate" placeholder="Contoh: B 1234 ABC" value={formData.licensePlate} onChange={handleInputChange} />
+                                        </div>
+                                    )}
+
+                                    {totalPrice > 0 && (
+                                        <div className="sm:col-span-2">
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Total Bayar</label>
+                                            <p className="text-lg font-bold text-gray-900 bg-gray-100 px-3 py-2 rounded-lg">
+                                                Rp {totalPrice.toLocaleString('id-ID')}
+                                            </p>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
                     </div>
-                    <div className="flex space-x-3 mt-8">
+                    <div className="flex space-x-3 mt-8 pt-4 border-t">
                         <button
                             onClick={handleCloseModal}
                             className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors font-semibold"
@@ -863,7 +1109,7 @@ const KosManagementSystem: React.FC = () => {
                         </button>
                         <button
                             onClick={handleFormSubmit}
-                            disabled={!selectedRoom || !formData.name || !formData.checkIn}
+                            disabled={!selectedRoom || !formData.name || !formData.checkIn || !!dateError}
                             className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold shadow-sm hover:shadow-md disabled:bg-gray-400 disabled:cursor-not-allowed"
                         >
                             Simpan Booking
@@ -875,22 +1121,37 @@ const KosManagementSystem: React.FC = () => {
     };
 
     const EditTenantModal: React.FC<EditTenantModalProps> = ({ show, onClose, tenant, onSubmit }) => {
-        const [formData, setFormData] = useState({ name: '', phone: '' });
+        const [formData, setFormData] = useState({ name: '', phone: '', hasVehicle: false, vehicleType: 'Roda 2' as 'Roda 2' | 'Roda 4', licensePlate: '' });
 
         React.useEffect(() => {
             if (tenant) {
-                setFormData({ name: tenant.name, phone: tenant.phone });
+                setFormData({
+                    name: tenant.name,
+                    phone: tenant.phone,
+                    hasVehicle: tenant.hasVehicle || false,
+                    vehicleType: tenant.vehicleType || 'Roda 2',
+                    licensePlate: tenant.licensePlate || ''
+                });
             }
         }, [tenant]);
 
         const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-            const { name, value } = e.target;
-            setFormData(prev => ({ ...prev, [name]: value }));
+            const { name, value, type, checked } = e.target;
+            setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+        };
+
+        const handleVehicleTypeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+            setFormData(prev => ({ ...prev, vehicleType: e.target.value as 'Roda 2' | 'Roda 4' }));
         };
 
         const handleFormSubmit = () => {
             if (!tenant) return;
-            onSubmit({ ...tenant, ...formData });
+            onSubmit({
+                ...tenant,
+                ...formData,
+                vehicleType: formData.hasVehicle ? formData.vehicleType : undefined,
+                licensePlate: formData.hasVehicle ? formData.licensePlate : undefined,
+            });
         };
 
         if (!show) return null;
@@ -906,6 +1167,29 @@ const KosManagementSystem: React.FC = () => {
                             <label className="block text-sm font-medium text-gray-700 mb-1">Kamar</label>
                             <p className="text-gray-800 bg-gray-100 px-3 py-2 rounded-lg">{tenant?.room}</p>
                         </div>
+                        <div className="flex items-center">
+                            <input type="checkbox" id="hasVehicleEdit" name="hasVehicle" checked={formData.hasVehicle} onChange={handleInputChange} className="mr-2"/>
+                            <label htmlFor="hasVehicleEdit" className="text-sm font-medium text-gray-700">Bawa Kendaraan?</label>
+                        </div>
+
+                        {formData.hasVehicle && (
+                            <div className="pl-6 border-l-2 border-gray-200 space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Tipe Kendaraan</label>
+                                    <div className="flex gap-4">
+                                        <label className="flex items-center">
+                                            <input type="radio" name="vehicleType" value="Roda 2" checked={formData.vehicleType === 'Roda 2'} onChange={handleVehicleTypeChange} className="mr-2"/>
+                                            Roda 2
+                                        </label>
+                                        <label className="flex items-center">
+                                            <input type="radio" name="vehicleType" value="Roda 4" checked={formData.vehicleType === 'Roda 4'} onChange={handleVehicleTypeChange} className="mr-2"/>
+                                            Roda 4
+                                        </label>
+                                    </div>
+                                </div>
+                                <InputField label="Plat Nomor" type="text" name="licensePlate" placeholder="Contoh: B 1234 ABC" value={formData.licensePlate} onChange={handleInputChange} />
+                            </div>
+                        )}
                     </div>
                     <div className="flex space-x-3 mt-8">
                         <button onClick={onClose} className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors font-semibold">
@@ -920,7 +1204,7 @@ const KosManagementSystem: React.FC = () => {
         );
     };
 
-    const PaymentModal: React.FC<PaymentModalProps> = ({ show, onClose, tenant, roomPrice, onSubmit }) => {
+    const PaymentModal: React.FC<PaymentModalProps> = ({ show, onClose, tenant, onSubmit }) => {
         const [method, setMethod] = useState('');
         const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
 
@@ -937,7 +1221,7 @@ const KosManagementSystem: React.FC = () => {
                 tenant,
                 method,
                 date,
-                amount: roomPrice
+                amount: tenant.amountOwed
             });
         };
 
@@ -952,7 +1236,7 @@ const KosManagementSystem: React.FC = () => {
                             <label className="block text-sm font-medium text-gray-700 mb-1">Penghuni</label>
                             <p className="text-gray-800 bg-gray-100 px-3 py-2 rounded-lg">{tenant?.name} - Kamar {tenant?.room}</p>
                         </div>
-                        <InputField label="Jumlah Pembayaran" type="number" name="amount" value={String(roomPrice)} onChange={() => {}} disabled />
+                        <InputField label="Jumlah Pembayaran" type="number" name="amount" value={String(tenant?.amountOwed)} onChange={() => {}} disabled />
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">Metode Pembayaran</label>
                             <select value={method} onChange={(e) => setMethod(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white text-gray-900">
@@ -980,6 +1264,7 @@ const KosManagementSystem: React.FC = () => {
     const navItems = [
         { id: 'dashboard', label: 'Dashboard', icon: Home },
         { id: 'rooms', label: 'Manajemen Kamar', icon: Calendar },
+        { id: 'bookings', label: 'Manajemen Booking', icon: Calendar },
         { id: 'tenants', label: 'Manajemen Penghuni', icon: Users },
         { id: 'payments', label: 'Manajemen Pembayaran', icon: CreditCard },
     ];
@@ -990,6 +1275,7 @@ const KosManagementSystem: React.FC = () => {
             case 'rooms': return <RoomManagement />;
             case 'tenants': return <TenantManagement />;
             case 'payments': return <PaymentManagement />;
+            case 'bookings': return <BookingManagement />;
             default: return <Dashboard />;
         }
     };
@@ -1083,7 +1369,6 @@ const KosManagementSystem: React.FC = () => {
                     setTenantForPayment(null);
                 }}
                 tenant={tenantForPayment}
-                roomPrice={rooms.find(r => r.number === tenantForPayment?.room)?.price || 0}
                 onSubmit={handlePaymentSubmit}
             />
         </div>
